@@ -8,6 +8,6 @@ ADD . /app/
 
 WORKDIR /app
 
-RUN go build travis . -t "travis-main"
+RUN go build travis .
 
 CMD ["/app/travis"]
