@@ -36,8 +36,8 @@ func main() {
 	instance.POST("/users/update", updateProfile)
 
 	instance.GET("/users/profile/:id", getProfile)
-	instance.GET("users/get-all/id", getAllIds)
-	instance.GET("users/get-all/profile", getAllProfiles)
+	instance.GET("/users/get-all/id", getAllIds)
+	instance.GET("/users/get-all/profile", getAllProfiles)
 
 	instance.GET("/users/delete/:id", deleteProfile)
 	instance.GET("/users/flush", flushAll)
