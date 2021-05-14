@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"regexp"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -39,6 +40,7 @@ func main() {
 	instance.POST("/users/update", updateProfile)
 
 	instance.GET("/users/profile/:id", getProfile)
+	instance.GET("/users/get/:phoneNumber", getProfileByPhoneNumber)
 	instance.GET("/users/get-all/profile", getAllProfiles)
 
 	instance.GET("/users/delete/:id", deleteProfile)
@@ -105,6 +107,17 @@ func getProfile(cnt echo.Context) error {
 	}
 	
 	return cnt.JSON(http.StatusOK, getUserByUUID(userId))
+}
+
+func getProfileByPhoneNumber(cnt echo.Context) error {
+	phoneNumber := cnt.Param("phoneNumber")
+	_, err := regexp.Match(`^(\+\d{5,})$`, []byte(phoneNumber))
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusOK, err.Error())
+	}
+	
+	return cnt.JSON(http.StatusOK, getUserByPhoneNumber(phoneNumber))
 }
 
 func getAllProfiles(cnt echo.Context) error {
