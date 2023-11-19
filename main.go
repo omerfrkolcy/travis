@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"regexp"
@@ -14,11 +15,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
 var (
-	_ = godotenv.Load()
-	ctx = context.Background()
-	mongoClient, _ = mongo.Connect(ctx, options.Client().ApplyURI(os.Getenv("DB_HOST")))
-	mongoDatabase = mongoClient.Database(os.Getenv("USER_DB"))
+	_               = godotenv.Load()
+	ctx             = context.Background()
+	mongoClient, _  = mongo.Connect(ctx, options.Client().ApplyURI(os.Getenv("DB_HOST")))
+	mongoDatabase   = mongoClient.Database(os.Getenv("USER_DB"))
 	mongoCollection = mongoDatabase.Collection(os.Getenv("USER_COLLECTION"))
 )
 
@@ -59,7 +61,11 @@ func saveProfile(cnt echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, false)
 	}
 
-	userByPhone := getUserByPhoneNumber(user.PhoneNumber)
+	userByPhone, err := getUserByPhoneNumber(ctx, user.PhoneNumber)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusOK, err.Error())
+	}
 
 	if userByPhone.UUID != "" {
 		user.UUID = userByPhone.UUID
@@ -77,7 +83,7 @@ func saveProfile(cnt echo.Context) error {
 		return cnt.JSON(http.StatusOK, user)
 	}
 
-	if  user.UUID == "" {
+	if user.UUID == "" {
 		user.UUID = uuid.NewString()
 	} else {
 		_, err := uuid.Parse(user.UUID)
@@ -87,7 +93,11 @@ func saveProfile(cnt echo.Context) error {
 		}
 	}
 
-	userByUUID := getUserByUUID(user.UUID)
+	userByUUID, err := getUserByUUID(ctx, user.UUID)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusOK, err.Error())
+	}
 
 	if userByUUID.PhoneNumber != "" {
 		user.PhoneNumber = userByUUID.PhoneNumber
@@ -105,8 +115,14 @@ func getProfile(cnt echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusOK, err.Error())
 	}
-	
-	return cnt.JSON(http.StatusOK, getUserByUUID(userId))
+
+	res, err := getUserByUUID(ctx, userId)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusOK, err.Error())
+	}
+
+	return cnt.JSON(http.StatusOK, res)
 }
 
 func getProfileByPhoneNumber(cnt echo.Context) error {
@@ -116,8 +132,14 @@ func getProfileByPhoneNumber(cnt echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusOK, err.Error())
 	}
-	
-	return cnt.JSON(http.StatusOK, getUserByPhoneNumber(phoneNumber))
+
+	res, err := getUserByPhoneNumber(ctx, phoneNumber)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusOK, err.Error())
+	}
+
+	return cnt.JSON(http.StatusOK, res)
 }
 
 func getAllProfiles(cnt echo.Context) error {
@@ -128,7 +150,7 @@ func getAllProfiles(cnt echo.Context) error {
 
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	} 
+	}
 
 	for userList.Next(ctx) {
 		userList.Decode(&user)
@@ -152,9 +174,18 @@ func updateProfile(cnt echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, false)
 	}
 
-	existingUserByPhoneNumber := getUserByPhoneNumber(user.PhoneNumber)
-	existingUserByUUID := getUserByUUID(user.UUID)
-	
+	existingUserByPhoneNumber, err := getUserByPhoneNumber(ctx, user.PhoneNumber)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusOK, err.Error())
+	}
+
+	existingUserByUUID, err := getUserByUUID(ctx, user.UUID)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusOK, err.Error())
+	}
+
 	if existingUserByPhoneNumber.PhoneNumber == "" && existingUserByUUID.UUID == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, false)
 	}
@@ -187,26 +218,31 @@ func deleteProfile(cnt echo.Context) error {
 	return cnt.JSON(http.StatusOK, err)
 }
 
-func getUserByPhoneNumber(phoneNumber string) *User {
+func getUserByPhoneNumber(ctx context.Context, phoneNumber string) (*User, error) {
 	user := new(User)
-	
+
 	if phoneNumber == "" {
-		return user
+		return nil, errors.New("phone number cannot be empty")
 	}
 
-	mongoCollection.FindOne(ctx, bson.M{"phone_number": phoneNumber}).Decode(&user)
+	err := mongoCollection.FindOne(ctx, bson.M{"phone_number": phoneNumber}).Decode(user)
+	if err != nil {
+		return nil, err
+	}
 
-	return user
+	return user, nil
 }
 
-func getUserByUUID(uuid string) *User {
-	user := new(User)
-
+func getUserByUUID(ctx context.Context, uuid string) (*User, error) {
 	if uuid == "" {
-		return user
+		return nil, errors.New("UUID cannot be empty")
 	}
-	
-	mongoCollection.FindOne(ctx, bson.M{"_id": uuid}).Decode(&user)
 
-	return user
+	user := new(User)
+	err := mongoCollection.FindOne(ctx, bson.M{"_id": uuid}).Decode(user)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
